@@ -42,7 +42,10 @@ jobs:
       - name: Capture screenshots on emulator
         uses: reactivecircus/android-emulator-runner@v2
         with:
-          api-level: 34
+          # API 30 (>= minSdk 26): boots reliably on shared runners; the API 34
+          # image timed out twice waiting for boot. UI under review renders
+          # the same on 30 for our purposes (Material3, edge-to-edge).
+          api-level: 30
           target: google_apis
           arch: x86_64
           # Leaner boot: skip snapshot load/save, boot animation and audio.
