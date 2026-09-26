@@ -16,7 +16,11 @@ on:
 
 jobs:
   screenshot:
-    runs-on: ubuntu-latest
+    # macOS runners provide hardware-accelerated emulation (HVF): the x86_64
+    # AVD on ubuntu-latest ran with `-accel off` and never finished booting
+    # (3 consecutive "Timeout waiting for emulator to boot"), so screenshots
+    # were impossible there. Public repos get free macOS minutes.
+    runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
 
@@ -42,12 +46,11 @@ jobs:
       - name: Capture screenshots on emulator
         uses: reactivecircus/android-emulator-runner@v2
         with:
-          # API 30 (>= minSdk 26): boots reliably on shared runners; the API 34
-          # image timed out twice waiting for boot. UI under review renders
-          # the same on 30 for our purposes (Material3, edge-to-edge).
-          api-level: 30
+          # API 34 = app targetSdk. arm64 image matches the Apple Silicon host
+          # so the emulator runs hardware-accelerated and boots in ~1-2 min.
+          api-level: 34
           target: google_apis
-          arch: x86_64
+          arch: arm64-v8a
           # Leaner boot: skip snapshot load/save, boot animation and audio.
           # (Animations stay enabled on the device — the app gates its own
           # motion on the system animator setting, which we want to review.)
