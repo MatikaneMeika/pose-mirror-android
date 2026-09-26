@@ -3,6 +3,7 @@ name: UI screenshots
 # Manual-only: captures the key screens on an emulator for UI review.
 # Trigger from the branch under review, e.g.:
 #   gh workflow run screenshot.yml --ref ui-review
+# discovery touch
 on:
   workflow_dispatch:
 
