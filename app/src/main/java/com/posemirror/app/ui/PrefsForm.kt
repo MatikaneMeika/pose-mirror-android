@@ -57,12 +57,14 @@ class PrefsForm(context: Context) {
 
     private fun addGroup(title: String, labels: List<String>): MaterialButtonToggleGroup {
         val ctx = root.context
+        val density = ctx.resources.displayMetrics.density
+        fun dp(v: Int): Int = (v * density).toInt()
         root.addView(TextView(ctx).apply {
             text = title
             textSize = 12f
             letterSpacing = 0.06f
             setTextColor(ContextCompat.getColor(ctx, R.color.faint))
-            setPadding(0, 28, 0, 8)
+            setPadding(0, dp(20), 0, dp(6))
         })
         val group = MaterialButtonToggleGroup(ctx).apply {
             isSingleSelection = true
@@ -78,7 +80,7 @@ class PrefsForm(context: Context) {
                     textSize = 14f
                     id = View.generateViewId()
                     minimumWidth = 0
-                    setPadding(36, 0, 36, 0)
+                    setPadding(dp(24), 0, dp(24), 0)
                 }
             )
         }

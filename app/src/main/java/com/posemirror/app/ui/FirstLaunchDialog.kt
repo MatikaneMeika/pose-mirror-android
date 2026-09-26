@@ -29,14 +29,16 @@ class FirstLaunchDialog : DialogFragment() {
         val form = PrefsForm(ctx)
         form.applySettings(AppPrefs.Settings()) // defaults pre-selected
 
+        val density = ctx.resources.displayMetrics.density
+        fun dp(v: Int): Int = (v * density).toInt()
         val body = LinearLayout(ctx).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(48, 8, 48, 8)
+            setPadding(dp(8), dp(4), dp(8), dp(4))
             addView(TextView(ctx).apply {
                 text = getString(R.string.firstlaunch_intro)
                 textSize = 14f
                 setTextColor(ContextCompat.getColor(ctx, R.color.muted))
-                setPadding(0, 0, 0, 8)
+                setPadding(0, 0, 0, dp(8))
             })
             addView(form.root)
         }

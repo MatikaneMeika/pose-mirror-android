@@ -60,6 +60,10 @@ python3 tools/make_fake_index.py /tmp/fakeindex
 adb root >/dev/null
 adb wait-for-device
 adb push /tmp/fakeindex "/data/data/$PKG/files/posemirror-index" >/dev/null
+# Pushed as root: hand ownership/labels back to the app so it can read them.
+APP_UID=$(adb shell stat -c %u "/data/data/$PKG/files")
+adb shell chown -R "$APP_UID:$APP_UID" "/data/data/$PKG/files/posemirror-index"
+adb shell restorecon -R "/data/data/$PKG/files/posemirror-index"
 adb shell pm grant "$PKG" android.permission.CAMERA
 adb shell am start -n "$PKG/.MainActivity"
 sleep 10

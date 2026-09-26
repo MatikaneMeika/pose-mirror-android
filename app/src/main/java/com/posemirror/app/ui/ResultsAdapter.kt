@@ -64,6 +64,7 @@ class ResultsAdapter : RecyclerView.Adapter<ResultsAdapter.Holder>() {
         holder.star.visibility = if (pinned) View.VISIBLE else View.GONE
         // Instant favorite feedback: a quick pop only on the pin transition,
         // never on routine rebinds (the grid refreshes several times/second).
+        val ctx = holder.itemView.context
         if (pinned && !holder.wasPinned && Motion.enabled(ctx)) {
             holder.star.scaleX = 0.6f
             holder.star.scaleY = 0.6f
@@ -80,7 +81,6 @@ class ResultsAdapter : RecyclerView.Adapter<ResultsAdapter.Holder>() {
             true
         }
 
-        val ctx = holder.itemView.context
         if (introArmed && position !in introPlayed && Motion.enabled(ctx)) {
             introPlayed.add(position)
             holder.itemView.alpha = 0f
