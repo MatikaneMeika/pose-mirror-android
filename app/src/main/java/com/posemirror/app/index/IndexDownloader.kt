@@ -18,14 +18,16 @@ object IndexDownloader {
      * on first launch (with a progress UI); the manual-URL input only appears
      * if this fails.
      *
-     * NOTE: this release asset does not exist yet — upload a starter bundle
-     * (e.g. a few hundred pose images exported with
-     * `python -m posemirror.export_portable`, zipped as index-v1.zip) to a
-     * release tagged `index-v1` before shipping, otherwise first launch falls
-     * back to the manual URL input.
+    /**
+     * Default starter index location. The bundle (a few hundred pose images
+     * exported with `python -m posemirror.export_portable`, zipped as
+     * index-v1.zip) is committed directly in the repo at
+     * `starter-index/index-v1.zip` and served via raw.githubusercontent.com,
+     * so first launch works with no release-asset upload step. If this ever
+     * 404s, first launch falls back to the manual URL input.
      */
     const val DEFAULT_INDEX_URL =
-        "https://github.com/MatikaneMeika/pose-mirror-android/releases/download/index-v1/index-v1.zip"
+        "https://raw.githubusercontent.com/MatikaneMeika/pose-mirror-android/main/starter-index/index-v1.zip"
 
     fun download(
         context: Context,
