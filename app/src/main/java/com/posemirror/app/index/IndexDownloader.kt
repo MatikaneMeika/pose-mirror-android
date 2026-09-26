@@ -14,11 +14,6 @@ import java.util.zip.ZipInputStream
 object IndexDownloader {
 
     /**
-     * Starter index hosted on this repo's releases. Downloaded automatically
-     * on first launch (with a progress UI); the manual-URL input only appears
-     * if this fails.
-     *
-    /**
      * Default starter index location. The bundle (a few hundred pose images
      * exported with `python -m posemirror.export_portable`, zipped as
      * index-v1.zip) is committed directly in the repo at
