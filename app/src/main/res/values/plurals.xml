@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <plurals name="status_live">
+        <item quantity="other">%d · 检测中</item>
+    </plurals>
+    <plurals name="status_idle">
+        <item quantity="other">%d · 待机</item>
+    </plurals>
+</resources>

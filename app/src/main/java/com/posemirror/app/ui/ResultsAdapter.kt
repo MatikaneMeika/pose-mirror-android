@@ -4,13 +4,19 @@ import android.graphics.BitmapFactory
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.view.animation.DecelerateInterpolator
 import android.widget.ImageView
 import android.widget.TextView
 import androidx.recyclerview.widget.RecyclerView
 import com.posemirror.app.R
 import com.posemirror.app.index.SearchHit
-import java.util.Locale
 
+/**
+ * Live top-k results. The grid updates a few times per second while the
+ * camera runs, so motion is deliberately restrained: a staggered entry plays
+ * exactly once per fresh population ([playIntro]); every later update just
+ * rebinds. Tap opens the detail sheet, long-press toggles the favorite.
+ */
 class ResultsAdapter : RecyclerView.Adapter<ResultsAdapter.Holder>() {
 
     private var hits: List<SearchHit> = emptyList()
@@ -18,12 +24,21 @@ class ResultsAdapter : RecyclerView.Adapter<ResultsAdapter.Holder>() {
     /** Ids the user pinned (favorites); shown with a star, never auto-deleted. */
     var pinnedIds: Set<String> = emptySet()
 
-    /** Long-press on a thumbnail toggles the favorite state. */
     var onTogglePin: ((String) -> Unit)? = null
+    var onOpenDetail: ((SearchHit) -> Unit)? = null
+
+    private var introArmed = false
+    private val introPlayed = mutableSetOf<Int>()
 
     fun submitList(newHits: List<SearchHit>) {
         hits = newHits
         notifyDataSetChanged()
+    }
+
+    /** Arm a one-time staggered entry animation for the next bind pass. */
+    fun playIntro() {
+        introArmed = true
+        introPlayed.clear()
     }
 
     override fun getItemCount(): Int = hits.size
@@ -36,24 +51,56 @@ class ResultsAdapter : RecyclerView.Adapter<ResultsAdapter.Holder>() {
 
     override fun onBindViewHolder(holder: Holder, position: Int) {
         val hit = hits[position]
-        // Thumbnails are small (<=320px); decode on the UI thread is fine here.
         val bmp = BitmapFactory.decodeFile(hit.thumbFile.absolutePath)
-        if (bmp != null) {
-            holder.thumb.setImageBitmap(bmp)
-        } else {
-            holder.thumb.setImageDrawable(null)
-        }
-        val pct = (hit.score.coerceIn(-1f, 1f) * 100f)
-        holder.score.text = String.format(Locale.US, "%.1f", pct)
+        if (bmp != null) holder.thumb.setImageBitmap(bmp)
+        else holder.thumb.setImageDrawable(null)
+
+        holder.score.text = (hit.score.coerceIn(0f, 1f) * 100).toInt().toString()
         holder.title.text = hit.entry?.title ?: hit.id
         holder.title.contentDescription =
             "${holder.title.text}, author ${hit.entry?.author ?: "unknown"}, " +
                 "license ${hit.entry?.license ?: "unknown"}"
         val pinned = hit.id in pinnedIds
         holder.star.visibility = if (pinned) View.VISIBLE else View.GONE
-        holder.thumb.setOnLongClickListener {
+        // Instant favorite feedback: a quick pop only on the pin transition,
+        // never on routine rebinds (the grid refreshes several times/second).
+        val ctx = holder.itemView.context
+        if (pinned && !holder.wasPinned && Motion.enabled(ctx)) {
+            holder.star.scaleX = 0.6f
+            holder.star.scaleY = 0.6f
+            holder.star.animate().scaleX(1f).scaleY(1f)
+                .setDuration(Motion.SHORT)
+                .setInterpolator(DecelerateInterpolator())
+                .start()
+        }
+        holder.wasPinned = pinned
+
+        holder.itemView.setOnClickListener { onOpenDetail?.invoke(hit) }
+        holder.itemView.setOnLongClickListener {
             onTogglePin?.invoke(hit.id)
             true
+        }
+
+        if (introArmed && position !in introPlayed && Motion.enabled(ctx)) {
+            introPlayed.add(position)
+            holder.itemView.alpha = 0f
+            holder.itemView.translationY = 24f
+            holder.itemView.animate()
+                .alpha(1f)
+                .translationY(0f)
+                .setStartDelay(position * Motion.STAGGER)
+                .setDuration(Motion.MEDIUM)
+                .setInterpolator(DecelerateInterpolator())
+                .withEndAction {
+                    holder.itemView.alpha = 1f
+                    holder.itemView.translationY = 0f
+                }
+                .start()
+            if (introPlayed.size >= hits.size) introArmed = false
+        } else {
+            holder.itemView.animate().cancel()
+            holder.itemView.alpha = 1f
+            holder.itemView.translationY = 0f
         }
     }
 
@@ -61,6 +108,9 @@ class ResultsAdapter : RecyclerView.Adapter<ResultsAdapter.Holder>() {
         val thumb: ImageView = v.findViewById(R.id.thumb)
         val score: TextView = v.findViewById(R.id.score)
         val title: TextView = v.findViewById(R.id.title)
-        val star: TextView = v.findViewById(R.id.star)
+        val star: ImageView = v.findViewById(R.id.star)
+
+        /** Last bound pin state, so the pop animation fires on transition only. */
+        var wasPinned: Boolean = false
     }
 }

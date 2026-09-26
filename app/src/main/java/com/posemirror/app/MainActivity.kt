@@ -1,16 +1,13 @@
 package com.posemirror.app
 
 import android.Manifest
-import android.content.Intent
+import android.animation.ObjectAnimator
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.os.Bundle
 import android.view.View
-import android.widget.Button
-import android.widget.CheckBox
-import android.widget.EditText
-import android.widget.ProgressBar
-import android.widget.TextView
+import android.view.animation.DecelerateInterpolator
+import android.widget.ImageButton
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.camera.core.CameraSelector
@@ -22,6 +19,12 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.RecyclerView
+import com.airbnb.lottie.LottieAnimationView
+import com.google.android.material.button.MaterialButton
+import com.google.android.material.progressindicator.LinearProgressIndicator
+import com.google.android.material.textfield.TextInputEditText
+import com.google.android.material.textfield.TextInputLayout
+import android.widget.TextView
 import com.posemirror.app.index.IndexDownloader
 import com.posemirror.app.index.IndexManager
 import com.posemirror.app.index.IndexSweeper
@@ -31,6 +34,8 @@ import com.posemirror.app.pose.PoseMath
 import com.posemirror.app.pose.PoseModelProvider
 import com.posemirror.app.prefs.AppPrefs
 import com.posemirror.app.ui.FirstLaunchDialog
+import com.posemirror.app.ui.Motion
+import com.posemirror.app.ui.ResultDetailSheet
 import com.posemirror.app.ui.ResultsAdapter
 import com.posemirror.app.ui.SettingsActivity
 import com.posemirror.app.work.UpdateWorker
@@ -41,29 +46,40 @@ import java.io.File
 import java.util.concurrent.Executors
 
 /**
- * Single-screen app: camera preview on top, live top-k matches below.
+ * Single-screen app: camera viewfinder on top, live top-k matches below.
  *
  * Pipeline (search is always offline after first-run setup):
  * CameraX (front camera) -> PoseLandmarker (GPU/CPU) -> PoseMath.normalize
  * -> PoseIndex.search over the memory-mapped portable index bundle.
  *
- * First run: the starter index auto-downloads from the release URL (with a
- * progress UI); the manual-URL fallback only appears if that fails. The pose
- * model is bundled in the APK when possible, otherwise downloaded once to
- * the app's private files dir. A one-time dialog collects the five update
- * presets; the background worker then keeps the gallery rolling.
+ * First run: the starter index auto-downloads from the release URL (setup
+ * overlay with progress); the manual-URL fallback only appears if that fails.
+ * The pose model is bundled in the APK when possible, otherwise downloaded
+ * once to the app's private files dir. A one-time dialog collects the five
+ * update presets; the background worker then keeps the gallery rolling.
  */
 class MainActivity : AppCompatActivity() {
 
     private lateinit var previewView: PreviewView
+    private lateinit var statusDot: View
     private lateinit var statusText: TextView
-    private lateinit var mirrorToggle: CheckBox
+    private lateinit var mirrorBtn: MaterialButton
+    private lateinit var settingsBtn: ImageButton
     private lateinit var resultsGrid: RecyclerView
-    private lateinit var setupCard: View
-    private lateinit var urlInput: EditText
-    private lateinit var downloadButton: Button
-    private lateinit var downloadProgress: ProgressBar
-    private lateinit var downloadStatus: TextView
+    private lateinit var skeletonView: View
+    private var skeletonPulse: ObjectAnimator? = null
+
+    // Setup overlay
+    private lateinit var setupScrim: View
+    private lateinit var setupLottie: LottieAnimationView
+    private lateinit var setupTitle: TextView
+    private lateinit var setupBody: TextView
+    private lateinit var setupProgress: LinearProgressIndicator
+    private lateinit var setupStatus: TextView
+    private lateinit var urlField: TextInputLayout
+    private lateinit var urlInput: TextInputEditText
+    private lateinit var setupPrimaryBtn: MaterialButton
+    private lateinit var setupSecondaryBtn: MaterialButton
 
     private val adapter = ResultsAdapter()
     private val cameraExecutor = Executors.newSingleThreadExecutor()
@@ -71,11 +87,20 @@ class MainActivity : AppCompatActivity() {
     private var poseIndex: PoseIndex? = null
     private var lastHits: List<com.posemirror.app.index.SearchHit> = emptyList()
     private var lastUiUpdate = 0L
+    private var firstResultsShown = false
+    private var mirrorOn = false
+
+    private enum class SetupMode { HIDDEN, AUTO, MANUAL, ERROR, SUCCESS }
 
     private val cameraPermission =
         registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
             if (granted) startCamera()
-            else statusText.text = getString(R.string.need_camera)
+            else {
+                statusText.text = getString(R.string.need_camera)
+                statusDot.backgroundTintList =
+                    ContextCompat.getColorStateList(this, R.color.error)
+                showSkeleton(false)
+            }
         }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -83,23 +108,37 @@ class MainActivity : AppCompatActivity() {
         setContentView(R.layout.activity_main)
 
         previewView = findViewById(R.id.previewView)
+        statusDot = findViewById(R.id.statusDot)
         statusText = findViewById(R.id.statusText)
-        mirrorToggle = findViewById(R.id.mirrorToggle)
+        mirrorBtn = findViewById(R.id.mirrorBtn)
+        settingsBtn = findViewById(R.id.settingsBtn)
         resultsGrid = findViewById(R.id.resultsGrid)
-        setupCard = findViewById(R.id.setupCard)
+        skeletonView = findViewById(R.id.skeletonView)
+        setupScrim = findViewById(R.id.setupScrim)
+        setupLottie = findViewById(R.id.setupLottie)
+        setupTitle = findViewById(R.id.setupTitle)
+        setupBody = findViewById(R.id.setupBody)
+        setupProgress = findViewById(R.id.setupProgress)
+        setupStatus = findViewById(R.id.setupStatus)
+        urlField = findViewById(R.id.urlField)
         urlInput = findViewById(R.id.urlInput)
-        downloadButton = findViewById(R.id.downloadButton)
-        downloadProgress = findViewById(R.id.downloadProgress)
-        downloadStatus = findViewById(R.id.downloadStatus)
+        setupPrimaryBtn = findViewById(R.id.setupPrimaryBtn)
+        setupSecondaryBtn = findViewById(R.id.setupSecondaryBtn)
 
         resultsGrid.layoutManager = GridLayoutManager(this, 3)
         resultsGrid.adapter = adapter
         adapter.onTogglePin = { id -> togglePin(id) }
+        adapter.onOpenDetail = { hit -> openDetail(hit) }
 
-        findViewById<Button>(R.id.settingsButton).setOnClickListener {
-            startActivity(Intent(this, SettingsActivity::class.java))
+        mirrorBtn.setOnClickListener { mirrorOn = mirrorBtn.isChecked }
+        settingsBtn.setOnClickListener {
+            startActivity(android.content.Intent(this, SettingsActivity::class.java))
         }
-        downloadButton.setOnClickListener { startManualDownload() }
+        setupPrimaryBtn.setOnClickListener { onSetupPrimary() }
+        setupSecondaryBtn.setOnClickListener { showSetup(SetupMode.MANUAL) }
+
+        statusDot.backgroundTintList =
+            ContextCompat.getColorStateList(this, R.color.faint)
 
         bootstrapIndex()
         resolveModelAndStartCamera()
@@ -114,14 +153,22 @@ class MainActivity : AppCompatActivity() {
             val loaded = withContext(Dispatchers.IO) { tryLoadIndex() }
             when {
                 loaded -> {
-                    setupCard.visibility = View.GONE
+                    showSetup(SetupMode.HIDDEN)
                     onIndexReady()
                 }
                 !AppPrefs.isAutoIndexTried(this@MainActivity) -> {
                     AppPrefs.setAutoIndexTried(this@MainActivity)
-                    startAutoDownload()
+                    showSetup(SetupMode.AUTO)
+                    doDownload(
+                        url = IndexDownloader.DEFAULT_INDEX_URL,
+                        onDone = {
+                            if (tryLoadIndex()) showSetup(SetupMode.SUCCESS)
+                            else showSetup(SetupMode.MANUAL)
+                        },
+                        onError = { showSetup(SetupMode.MANUAL) }
+                    )
                 }
-                else -> showManualDownload()
+                else -> showSetup(SetupMode.MANUAL)
             }
         }
     }
@@ -131,73 +178,151 @@ class MainActivity : AppCompatActivity() {
         val dir = indexDir()
         if (!File(dir, "format.json").exists()) return false
         val result = PoseIndex.load(dir)
-        result.onSuccess {
-            poseIndex = it
-            runOnUiThread {
-                statusText.text = getString(R.string.index_ready, it.size)
-            }
-        }.onFailure { e ->
-            runOnUiThread {
-                statusText.text = getString(R.string.index_bad, e.message)
-            }
-        }
+        result.onSuccess { poseIndex = it }
         return result.isSuccess
     }
 
-    private fun startAutoDownload() {
-        setupCard.visibility = View.VISIBLE
-        urlInput.visibility = View.GONE
-        downloadButton.visibility = View.GONE
-        downloadProgress.visibility = View.VISIBLE
-        downloadProgress.isIndeterminate = true
-        downloadStatus.text = getString(R.string.dl_auto)
-        doDownload(
-            url = IndexDownloader.DEFAULT_INDEX_URL,
-            onDone = {
-                if (tryLoadIndex()) {
-                    setupCard.visibility = View.GONE
-                    onIndexReady()
-                } else {
-                    showManualDownload()
-                }
-            },
-            onError = { showManualDownload() }
-        )
+    private fun showSetup(mode: SetupMode) {
+        val animate = Motion.enabled(this)
+        val wasVisible = setupScrim.visibility == View.VISIBLE
+        when (mode) {
+            SetupMode.HIDDEN -> {
+                setupLottie.cancelAnimation()
+                setupScrim.visibility = View.GONE
+            }
+            SetupMode.AUTO -> {
+                setupScrim.visibility = View.VISIBLE
+                setupTitle.setText(R.string.setup_title)
+                setupBody.setText(R.string.setup_body)
+                playLottie(R.raw.dl_arrow, loop = true)
+                setupProgress.visibility = View.VISIBLE
+                setupProgress.isIndeterminate = true
+                setupStatus.setText(R.string.dl_auto)
+                setupStatus.setTextColor(ContextCompat.getColor(this, R.color.muted))
+                urlField.visibility = View.GONE
+                setupPrimaryBtn.visibility = View.GONE
+                setupSecondaryBtn.visibility = View.GONE
+            }
+            SetupMode.MANUAL -> {
+                setupScrim.visibility = View.VISIBLE
+                setupTitle.setText(R.string.setup_title)
+                setupBody.setText(R.string.setup_body_manual)
+                playLottie(R.raw.empty_frame, loop = true)
+                setupProgress.visibility = View.GONE
+                setupStatus.text = ""
+                urlField.visibility = View.VISIBLE
+                setupPrimaryBtn.visibility = View.VISIBLE
+                setupPrimaryBtn.setText(R.string.download)
+                setupSecondaryBtn.visibility = View.GONE
+            }
+            SetupMode.ERROR -> {
+                setupScrim.visibility = View.VISIBLE
+                playLottie(R.raw.empty_frame, loop = true)
+                setupProgress.visibility = View.GONE
+                urlField.visibility = View.GONE
+                setupPrimaryBtn.visibility = View.VISIBLE
+                setupPrimaryBtn.setText(R.string.retry)
+                setupSecondaryBtn.visibility = View.VISIBLE
+                setupSecondaryBtn.setText(R.string.setup_manual)
+            }
+            SetupMode.SUCCESS -> {
+                setupScrim.visibility = View.VISIBLE
+                setupTitle.setText(R.string.setup_success)
+                setupBody.text = ""
+                playLottie(R.raw.success_check, loop = false)
+                setupProgress.visibility = View.GONE
+                setupStatus.text = ""
+                urlField.visibility = View.GONE
+                setupPrimaryBtn.visibility = View.GONE
+                setupSecondaryBtn.visibility = View.GONE
+                val hold = if (animate) Motion.SUCCESS_HOLD else 200L
+                setupScrim.postDelayed(
+                    {
+                        if (isFinishing || isDestroyed) return@postDelayed
+                        showSetup(SetupMode.HIDDEN)
+                        onIndexReady()
+                    },
+                    hold
+                )
+            }
+        }
+        if (mode != SetupMode.HIDDEN && animate && !wasVisible) {
+            setupScrim.alpha = 0f
+            setupScrim.animate().alpha(1f).setDuration(Motion.SHORT)
+                .setInterpolator(DecelerateInterpolator()).start()
+        } else {
+            setupScrim.alpha = 1f
+        }
     }
 
-    private fun showManualDownload() {
-        setupCard.visibility = View.VISIBLE
-        urlInput.visibility = View.VISIBLE
-        downloadButton.visibility = View.VISIBLE
-        downloadButton.isEnabled = true
-        downloadProgress.visibility = View.GONE
-        downloadStatus.text = getString(R.string.dl_auto_failed)
+    private fun playLottie(rawRes: Int, loop: Boolean) {
+        if (!Motion.enabled(this)) {
+            setupLottie.cancelAnimation()
+            setupLottie.setAnimation(rawRes)
+            setupLottie.progress = 0.35f
+            return
+        }
+        setupLottie.repeatCount = if (loop) ObjectAnimator.INFINITE else 0
+        setupLottie.setAnimation(rawRes)
+        setupLottie.playAnimation()
+    }
+
+    private fun onSetupPrimary() {
+        when {
+            setupPrimaryBtn.text == getString(R.string.retry) -> {
+                showSetup(SetupMode.AUTO)
+                doDownload(
+                    url = IndexDownloader.DEFAULT_INDEX_URL,
+                    onDone = {
+                        if (tryLoadIndex()) showSetup(SetupMode.SUCCESS)
+                        else showSetup(SetupMode.ERROR).also {
+                            setupStatus.setText(R.string.index_bad_simple)
+                            setupStatus.setTextColor(
+                                ContextCompat.getColor(this, R.color.error)
+                            )
+                        }
+                    },
+                    onError = { msg ->
+                        showSetup(SetupMode.ERROR)
+                        setupStatus.text = getString(R.string.dl_failed, msg)
+                        setupStatus.setTextColor(
+                            ContextCompat.getColor(this, R.color.error)
+                        )
+                    }
+                )
+            }
+            else -> startManualDownload()
+        }
     }
 
     private fun startManualDownload() {
         val url = urlInput.text.toString().trim()
         if (url.isEmpty()) {
-            downloadStatus.text = getString(R.string.url_empty)
+            setupStatus.setText(R.string.url_empty)
+            setupStatus.setTextColor(ContextCompat.getColor(this, R.color.error))
             return
         }
-        downloadButton.isEnabled = false
-        downloadProgress.visibility = View.VISIBLE
+        setupPrimaryBtn.isEnabled = false
+        setupProgress.visibility = View.VISIBLE
+        setupProgress.isIndeterminate = true
         doDownload(
             url = url,
             onDone = {
-                downloadProgress.visibility = View.GONE
-                downloadButton.isEnabled = true
-                if (tryLoadIndex()) {
-                    setupCard.visibility = View.GONE
-                    onIndexReady()
-                } else {
-                    downloadStatus.text = getString(R.string.index_bad, "downloaded")
+                setupProgress.visibility = View.GONE
+                setupPrimaryBtn.isEnabled = true
+                if (tryLoadIndex()) showSetup(SetupMode.SUCCESS)
+                else {
+                    showSetup(SetupMode.ERROR)
+                    setupStatus.setText(R.string.index_bad_simple)
+                    setupStatus.setTextColor(ContextCompat.getColor(this, R.color.error))
                 }
             },
             onError = { msg ->
-                downloadProgress.visibility = View.GONE
-                downloadButton.isEnabled = true
-                downloadStatus.text = getString(R.string.dl_failed, msg)
+                setupProgress.visibility = View.GONE
+                setupPrimaryBtn.isEnabled = true
+                showSetup(SetupMode.ERROR)
+                setupStatus.text = getString(R.string.dl_failed, msg)
+                setupStatus.setTextColor(ContextCompat.getColor(this, R.color.error))
             }
         )
     }
@@ -210,13 +335,15 @@ class MainActivity : AppCompatActivity() {
             onProgress = { done, total ->
                 runOnUiThread {
                     if (total > 0) {
-                        downloadProgress.isIndeterminate = false
-                        downloadProgress.progress = (done * 100 / total).toInt()
-                        downloadStatus.text =
+                        setupProgress.isIndeterminate = false
+                        setupProgress.setProgressCompat(
+                            (done * 100 / total).toInt(), true
+                        )
+                        setupStatus.text =
                             getString(R.string.dl_progress, done / 1024, total / 1024)
                     } else {
-                        downloadProgress.isIndeterminate = true
-                        downloadStatus.text =
+                        setupProgress.isIndeterminate = true
+                        setupStatus.text =
                             getString(R.string.dl_progress_unknown, done / 1024)
                     }
                 }
@@ -228,7 +355,10 @@ class MainActivity : AppCompatActivity() {
 
     /** Called once a usable index is in place (first run or later). */
     private fun onIndexReady() {
+        val n = poseIndex?.size ?: 0
+        statusText.text = resources.getQuantityString(R.plurals.status_idle, n, n)
         refreshPinnedIds()
+        adapter.playIntro()
         lifecycleScope.launch {
             val s = AppPrefs.load(this@MainActivity)
             if (!AppPrefs.isFirstRunDone(this@MainActivity)) {
@@ -268,25 +398,49 @@ class MainActivity : AppCompatActivity() {
             runOnUiThread {
                 adapter.pinnedIds = pinned
                 adapter.submitList(lastHits)
+                (supportFragmentManager.findFragmentByTag("detail") as? ResultDetailSheet)
+                    ?.takeIf { it.sheetId == id }
+                    ?.setPinned(id in pinned)
             }
         }.start()
+    }
+
+    private fun openDetail(hit: com.posemirror.app.index.SearchHit) {
+        val e = hit.entry
+        ResultDetailSheet.new(
+            id = hit.id,
+            pinned = hit.id in adapter.pinnedIds,
+            thumbPath = hit.thumbFile.absolutePath,
+            title = e?.title ?: hit.id,
+            author = e?.author ?: getString(R.string.unknown),
+            license = e?.license ?: getString(R.string.unknown),
+            source = e?.source ?: "",
+            score = hit.score
+        ).apply {
+            onTogglePin = { id -> togglePin(id) }
+        }.show(supportFragmentManager, "detail")
     }
 
     // ---------- pose model ----------
 
     /** Resolves the model off the main thread (may download it once). */
     private fun resolveModelAndStartCamera() {
-        statusText.text = getString(R.string.model_loading)
+        statusText.setText(R.string.model_loading)
+        showSkeleton(true)
         Thread {
             val model = PoseModelProvider.resolve(this)
             runOnUiThread {
                 if (model == null) {
-                    statusText.text = getString(R.string.model_failed)
+                    statusText.setText(R.string.model_failed)
+                    statusDot.backgroundTintList =
+                        ContextCompat.getColorStateList(this, R.color.error)
+                    showSkeleton(false)
                     return@runOnUiThread
                 }
                 val err = setupLandmarker(model)
                 if (err != null) {
                     statusText.text = err
+                    showSkeleton(false)
                     return@runOnUiThread
                 }
                 requestCamera()
@@ -325,7 +479,7 @@ class MainActivity : AppCompatActivity() {
             throttledUiUpdate(emptyList(), poseFound = vec != null)
             return
         }
-        val hits = index.search(vec, k = 9, mirror = mirrorToggle.isChecked)
+        val hits = index.search(vec, k = 9, mirror = mirrorOn)
         throttledUiUpdate(hits, poseFound = true)
     }
 
@@ -339,12 +493,48 @@ class MainActivity : AppCompatActivity() {
         runOnUiThread {
             lastHits = hits
             adapter.submitList(hits)
+            if (!firstResultsShown) {
+                firstResultsShown = true
+                showSkeleton(false)
+            }
             val n = poseIndex?.size ?: 0
-            statusText.text = getString(
-                R.string.status,
-                n,
-                if (poseFound) getString(R.string.yes) else getString(R.string.no)
-            )
+            if (poseFound) {
+                statusText.text = resources.getQuantityString(R.plurals.status_live, n, n)
+                statusDot.backgroundTintList =
+                    ContextCompat.getColorStateList(this, R.color.gold)
+            } else {
+                statusText.setText(R.string.pose_hint)
+                statusDot.backgroundTintList =
+                    ContextCompat.getColorStateList(this, R.color.faint)
+            }
+        }
+    }
+
+    private fun showSkeleton(show: Boolean) {
+        if (show) {
+            skeletonView.visibility = View.VISIBLE
+            skeletonView.alpha = 1f
+            if (Motion.enabled(this) && skeletonPulse == null) {
+                skeletonPulse = ObjectAnimator.ofFloat(skeletonView, "alpha", 1f, 0.45f, 1f)
+                    .apply {
+                        duration = 900
+                        repeatCount = ObjectAnimator.INFINITE
+                        start()
+                    }
+            }
+        } else {
+            skeletonPulse?.cancel()
+            skeletonPulse = null
+            if (skeletonView.visibility != View.VISIBLE) return
+            if (Motion.enabled(this)) {
+                skeletonView.animate().alpha(0f).setDuration(Motion.SHORT)
+                    .withEndAction {
+                        skeletonView.visibility = View.GONE
+                        skeletonView.alpha = 1f
+                    }.start()
+            } else {
+                skeletonView.visibility = View.GONE
+            }
         }
     }
 
@@ -397,6 +587,7 @@ class MainActivity : AppCompatActivity() {
 
     override fun onDestroy() {
         super.onDestroy()
+        skeletonPulse?.cancel()
         landmarker?.close()
         cameraExecutor.shutdown()
     }
