@@ -22,4 +22,10 @@
     <string name="dl_progress">%1$d / %2$d KB</string>
     <string name="dl_progress_unknown">%1$d KB downloaded…</string>
     <string name="dl_failed">download failed: %1$s</string>
+
+    <string name="settings">设置</string>
+    <string name="model_loading">loading pose model…</string>
+    <string name="model_failed">pose model download failed — check network and restart</string>
+    <string name="dl_auto">Downloading starter index…</string>
+    <string name="dl_auto_failed">Auto-download failed — paste an index zip URL manually.</string>
 </resources>

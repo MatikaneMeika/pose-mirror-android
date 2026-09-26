@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- pose figure foreground (safe zone: central 72dp) -->
+    <path
+        android:fillColor="#FFD54F"
+        android:pathData="M63,30 a9,9 0 1,1 -18,0 a9,9 0 1,1 18,0" />
+    <path
+        android:strokeColor="#FFD54F"
+        android:strokeWidth="7"
+        android:strokeLineCap="round"
+        android:pathData="M54,40 L51,62 M52,46 L32,38 M52,46 L72,52 M51,62 L38,84 M51,62 L66,82" />
+</vector>

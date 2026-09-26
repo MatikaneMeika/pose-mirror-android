@@ -15,6 +15,12 @@ class ResultsAdapter : RecyclerView.Adapter<ResultsAdapter.Holder>() {
 
     private var hits: List<SearchHit> = emptyList()
 
+    /** Ids the user pinned (favorites); shown with a star, never auto-deleted. */
+    var pinnedIds: Set<String> = emptySet()
+
+    /** Long-press on a thumbnail toggles the favorite state. */
+    var onTogglePin: ((String) -> Unit)? = null
+
     fun submitList(newHits: List<SearchHit>) {
         hits = newHits
         notifyDataSetChanged()
@@ -43,11 +49,18 @@ class ResultsAdapter : RecyclerView.Adapter<ResultsAdapter.Holder>() {
         holder.title.contentDescription =
             "${holder.title.text}, author ${hit.entry?.author ?: "unknown"}, " +
                 "license ${hit.entry?.license ?: "unknown"}"
+        val pinned = hit.id in pinnedIds
+        holder.star.visibility = if (pinned) View.VISIBLE else View.GONE
+        holder.thumb.setOnLongClickListener {
+            onTogglePin?.invoke(hit.id)
+            true
+        }
     }
 
     class Holder(v: View) : RecyclerView.ViewHolder(v) {
         val thumb: ImageView = v.findViewById(R.id.thumb)
         val score: TextView = v.findViewById(R.id.score)
         val title: TextView = v.findViewById(R.id.title)
+        val star: TextView = v.findViewById(R.id.star)
     }
 }

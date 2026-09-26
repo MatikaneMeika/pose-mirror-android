@@ -13,7 +13,9 @@ import com.google.mediapipe.tasks.vision.poselandmarker.PoseLandmarkerResult
 /**
  * Wraps MediaPipe Tasks PoseLandmarker in LIVE_STREAM mode.
  *
- * The model file must be in `src/main/assets/` (see tools/download_model.sh).
+ * The model is resolved by [PoseModelProvider]: bundled in the APK when
+ * `tools/download_model.sh` ran before the build, otherwise downloaded once
+ * to the app's private files dir and memory-mapped.
  * Tries the GPU delegate first, falls back to CPU.
  * Result callbacks arrive on a MediaPipe background thread.
  */
@@ -23,29 +25,29 @@ class PoseLandmarkerHelper(
     private val onError: (String) -> Unit
 ) {
     private var landmarker: PoseLandmarker? = null
+    private var modelRef: PoseModelProvider.ModelRef? = null
 
     /** Returns null on success, or a human-readable error. */
-    fun setup(): String? {
-        try {
-            context.assets.open(MODEL_ASSET).close()
-        } catch (e: Exception) {
-            return "pose model missing from assets — run tools/download_model.sh, then rebuild"
-        }
+    fun setup(model: PoseModelProvider.ModelRef): String? {
         var lastError: Exception? = null
         for (delegate in listOf(Delegate.GPU, Delegate.CPU)) {
             try {
-                val baseOptions = BaseOptions.builder()
-                    .setModelAssetPath(MODEL_ASSET)
-                    .setDelegate(delegate)
-                    .build()
+                val baseBuilder = BaseOptions.builder().setDelegate(delegate)
+                when (model) {
+                    is PoseModelProvider.ModelRef.Asset ->
+                        baseBuilder.setModelAssetPath(model.assetPath)
+                    is PoseModelProvider.ModelRef.Mapped ->
+                        baseBuilder.setModelAssetBuffer(model.buffer)
+                }
                 val options = PoseLandmarker.PoseLandmarkerOptions.builder()
-                    .setBaseOptions(baseOptions)
+                    .setBaseOptions(baseBuilder.build())
                     .setRunningMode(RunningMode.LIVE_STREAM)
                     .setNumPoses(1)
                     .setResultListener { result, _ -> handleResult(result) }
                     .setErrorListener { e -> onError(e.message ?: e.toString()) }
                     .build()
                 landmarker = PoseLandmarker.createFromOptions(context, options)
+                modelRef = model
                 return null
             } catch (e: Exception) {
                 lastError = e
@@ -78,9 +80,7 @@ class PoseLandmarkerHelper(
     fun close() {
         landmarker?.close()
         landmarker = null
-    }
-
-    companion object {
-        const val MODEL_ASSET = "pose_landmarker_full.task"
+        (modelRef as? PoseModelProvider.ModelRef.Mapped)?.close()
+        modelRef = null
     }
 }

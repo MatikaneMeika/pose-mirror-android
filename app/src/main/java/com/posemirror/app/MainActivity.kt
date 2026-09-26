@@ -1,6 +1,7 @@
 package com.posemirror.app
 
 import android.Manifest
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.os.Bundle
@@ -18,22 +19,39 @@ import androidx.camera.core.Preview
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
 import androidx.core.content.ContextCompat
+import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.posemirror.app.index.IndexDownloader
+import com.posemirror.app.index.IndexManager
+import com.posemirror.app.index.IndexSweeper
 import com.posemirror.app.index.PoseIndex
 import com.posemirror.app.pose.PoseLandmarkerHelper
 import com.posemirror.app.pose.PoseMath
+import com.posemirror.app.pose.PoseModelProvider
+import com.posemirror.app.prefs.AppPrefs
+import com.posemirror.app.ui.FirstLaunchDialog
 import com.posemirror.app.ui.ResultsAdapter
+import com.posemirror.app.ui.SettingsActivity
+import com.posemirror.app.work.UpdateWorker
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.io.File
 import java.util.concurrent.Executors
 
 /**
  * Single-screen app: camera preview on top, live top-k matches below.
  *
- * Pipeline (all offline after first-run setup):
+ * Pipeline (search is always offline after first-run setup):
  * CameraX (front camera) -> PoseLandmarker (GPU/CPU) -> PoseMath.normalize
  * -> PoseIndex.search over the memory-mapped portable index bundle.
+ *
+ * First run: the starter index auto-downloads from the release URL (with a
+ * progress UI); the manual-URL fallback only appears if that fails. The pose
+ * model is bundled in the APK when possible, otherwise downloaded once to
+ * the app's private files dir. A one-time dialog collects the five update
+ * presets; the background worker then keeps the gallery rolling.
  */
 class MainActivity : AppCompatActivity() {
 
@@ -51,6 +69,7 @@ class MainActivity : AppCompatActivity() {
     private val cameraExecutor = Executors.newSingleThreadExecutor()
     private var landmarker: PoseLandmarkerHelper? = null
     private var poseIndex: PoseIndex? = null
+    private var lastHits: List<com.posemirror.app.index.SearchHit> = emptyList()
     private var lastUiUpdate = 0L
 
     private val cameraPermission =
@@ -75,33 +94,37 @@ class MainActivity : AppCompatActivity() {
 
         resultsGrid.layoutManager = GridLayoutManager(this, 3)
         resultsGrid.adapter = adapter
+        adapter.onTogglePin = { id -> togglePin(id) }
 
-        downloadButton.setOnClickListener { startIndexDownload() }
-
-        if (tryLoadIndex()) {
-            setupCard.visibility = View.GONE
-        } else {
-            setupCard.visibility = View.VISIBLE
+        findViewById<Button>(R.id.settingsButton).setOnClickListener {
+            startActivity(Intent(this, SettingsActivity::class.java))
         }
+        downloadButton.setOnClickListener { startManualDownload() }
 
-        val err = setupLandmarker()
-        if (err != null) {
-            statusText.text = err
-            return
-        }
-
-        if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) ==
-            PackageManager.PERMISSION_GRANTED
-        ) {
-            startCamera()
-        } else {
-            cameraPermission.launch(Manifest.permission.CAMERA)
-        }
+        bootstrapIndex()
+        resolveModelAndStartCamera()
     }
 
-    // ---------- index ----------
+    // ---------- index bootstrap ----------
 
-    private fun indexDir(): File = File(filesDir, "posemirror-index")
+    private fun indexDir(): File = File(filesDir, UpdateWorker.INDEX_DIR)
+
+    private fun bootstrapIndex() {
+        lifecycleScope.launch {
+            val loaded = withContext(Dispatchers.IO) { tryLoadIndex() }
+            when {
+                loaded -> {
+                    setupCard.visibility = View.GONE
+                    onIndexReady()
+                }
+                !AppPrefs.isAutoIndexTried(this@MainActivity) -> {
+                    AppPrefs.setAutoIndexTried(this@MainActivity)
+                    startAutoDownload()
+                }
+                else -> showManualDownload()
+            }
+        }
+    }
 
     /** Returns true when a usable index was loaded. */
     private fun tryLoadIndex(): Boolean {
@@ -121,7 +144,37 @@ class MainActivity : AppCompatActivity() {
         return result.isSuccess
     }
 
-    private fun startIndexDownload() {
+    private fun startAutoDownload() {
+        setupCard.visibility = View.VISIBLE
+        urlInput.visibility = View.GONE
+        downloadButton.visibility = View.GONE
+        downloadProgress.visibility = View.VISIBLE
+        downloadProgress.isIndeterminate = true
+        downloadStatus.text = getString(R.string.dl_auto)
+        doDownload(
+            url = IndexDownloader.DEFAULT_INDEX_URL,
+            onDone = {
+                if (tryLoadIndex()) {
+                    setupCard.visibility = View.GONE
+                    onIndexReady()
+                } else {
+                    showManualDownload()
+                }
+            },
+            onError = { showManualDownload() }
+        )
+    }
+
+    private fun showManualDownload() {
+        setupCard.visibility = View.VISIBLE
+        urlInput.visibility = View.VISIBLE
+        downloadButton.visibility = View.VISIBLE
+        downloadButton.isEnabled = true
+        downloadProgress.visibility = View.GONE
+        downloadStatus.text = getString(R.string.dl_auto_failed)
+    }
+
+    private fun startManualDownload() {
         val url = urlInput.text.toString().trim()
         if (url.isEmpty()) {
             downloadStatus.text = getString(R.string.url_empty)
@@ -129,6 +182,27 @@ class MainActivity : AppCompatActivity() {
         }
         downloadButton.isEnabled = false
         downloadProgress.visibility = View.VISIBLE
+        doDownload(
+            url = url,
+            onDone = {
+                downloadProgress.visibility = View.GONE
+                downloadButton.isEnabled = true
+                if (tryLoadIndex()) {
+                    setupCard.visibility = View.GONE
+                    onIndexReady()
+                } else {
+                    downloadStatus.text = getString(R.string.index_bad, "downloaded")
+                }
+            },
+            onError = { msg ->
+                downloadProgress.visibility = View.GONE
+                downloadButton.isEnabled = true
+                downloadStatus.text = getString(R.string.dl_failed, msg)
+            }
+        )
+    }
+
+    private fun doDownload(url: String, onDone: () -> Unit, onError: (String) -> Unit) {
         IndexDownloader.download(
             context = this,
             url = url,
@@ -147,27 +221,80 @@ class MainActivity : AppCompatActivity() {
                     }
                 }
             },
-            onDone = {
-                runOnUiThread {
-                    downloadProgress.visibility = View.GONE
-                    downloadButton.isEnabled = true
-                    if (tryLoadIndex()) setupCard.visibility = View.GONE
-                    else downloadStatus.text = getString(R.string.index_bad, "downloaded")
-                }
-            },
-            onError = { msg ->
-                runOnUiThread {
-                    downloadProgress.visibility = View.GONE
-                    downloadButton.isEnabled = true
-                    downloadStatus.text = getString(R.string.dl_failed, msg)
-                }
-            }
+            onDone = { runOnUiThread { onDone() } },
+            onError = { msg -> runOnUiThread { onError(msg) } }
         )
     }
 
-    // ---------- pose ----------
+    /** Called once a usable index is in place (first run or later). */
+    private fun onIndexReady() {
+        refreshPinnedIds()
+        lifecycleScope.launch {
+            val s = AppPrefs.load(this@MainActivity)
+            if (!AppPrefs.isFirstRunDone(this@MainActivity)) {
+                FirstLaunchDialog().show(supportFragmentManager, "firstlaunch")
+            }
+            // Retention sweep on every app start (background thread).
+            Thread {
+                val mgr = IndexManager(indexDir())
+                mgr.ensureMetaFor(poseIndex?.ids ?: emptyList())
+                val swept = IndexSweeper.sweep(indexDir(), s.ttlDays, s.indexCap)
+                if (swept.deleted.isNotEmpty()) {
+                    tryLoadIndex()
+                    refreshPinnedIds()
+                }
+            }.start()
+        }
+    }
 
-    private fun setupLandmarker(): String? {
+    // ---------- favorites ----------
+
+    private fun refreshPinnedIds() {
+        Thread {
+            val pinned = IndexManager(indexDir()).pinnedIds()
+            runOnUiThread {
+                adapter.pinnedIds = pinned
+                adapter.submitList(lastHits)
+            }
+        }.start()
+    }
+
+    private fun togglePin(id: String) {
+        Thread {
+            val mgr = IndexManager(indexDir())
+            val cur = mgr.loadMeta()[id]?.pinned == true
+            mgr.setPinned(id, !cur)
+            val pinned = mgr.pinnedIds()
+            runOnUiThread {
+                adapter.pinnedIds = pinned
+                adapter.submitList(lastHits)
+            }
+        }.start()
+    }
+
+    // ---------- pose model ----------
+
+    /** Resolves the model off the main thread (may download it once). */
+    private fun resolveModelAndStartCamera() {
+        statusText.text = getString(R.string.model_loading)
+        Thread {
+            val model = PoseModelProvider.resolve(this)
+            runOnUiThread {
+                if (model == null) {
+                    statusText.text = getString(R.string.model_failed)
+                    return@runOnUiThread
+                }
+                val err = setupLandmarker(model)
+                if (err != null) {
+                    statusText.text = err
+                    return@runOnUiThread
+                }
+                requestCamera()
+            }
+        }.start()
+    }
+
+    private fun setupLandmarker(model: PoseModelProvider.ModelRef): String? {
         val helper = PoseLandmarkerHelper(
             context = this,
             onResult = { landmarks -> onPoseResult(landmarks) },
@@ -175,9 +302,19 @@ class MainActivity : AppCompatActivity() {
                 runOnUiThread { statusText.text = getString(R.string.pose_error, msg) }
             }
         )
-        val err = helper.setup()
+        val err = helper.setup(model)
         if (err == null) landmarker = helper
         return err
+    }
+
+    private fun requestCamera() {
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) ==
+            PackageManager.PERMISSION_GRANTED
+        ) {
+            startCamera()
+        } else {
+            cameraPermission.launch(Manifest.permission.CAMERA)
+        }
     }
 
     /** Runs on a MediaPipe background thread. */
@@ -200,6 +337,7 @@ class MainActivity : AppCompatActivity() {
         if (now - lastUiUpdate < 350 && hits.isNotEmpty()) return
         lastUiUpdate = now
         runOnUiThread {
+            lastHits = hits
             adapter.submitList(hits)
             val n = poseIndex?.size ?: 0
             statusText.text = getString(
