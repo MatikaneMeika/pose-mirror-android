@@ -45,6 +45,10 @@ jobs:
           api-level: 34
           target: google_apis
           arch: x86_64
+          # Leaner boot: skip snapshot load/save, boot animation and audio.
+          # (Animations stay enabled on the device — the app gates its own
+          # motion on the system animator setting, which we want to review.)
+          emulator-options: -no-snapshot -no-boot-anim -no-audio
           script: bash tools/ci_screenshots.sh
 
       - name: Upload screenshots
