@@ -16,11 +16,15 @@ on:
 
 jobs:
   screenshot:
-    # macOS runners provide hardware-accelerated emulation (HVF): the x86_64
-    # AVD on ubuntu-latest ran with `-accel off` and never finished booting
-    # (3 consecutive "Timeout waiting for emulator to boot"), so screenshots
-    # were impossible there. Public repos get free macOS minutes.
-    runs-on: macos-latest
+    # NOTE (2026-09-26): free runners currently offer no usable hardware
+    # acceleration for the emulator — ubuntu-latest has no /dev/kvm (the
+    # action launched with `-accel off`) and macos-latest fails with
+    # `HVF error: HV_UNSUPPORTED`. We therefore boot the lightest viable AVD
+    # (API 28 >= minSdk 26, AOSP `default` target without Play services)
+    # under software emulation with a generous boot timeout. Screenshots
+    # remain real-device renders; Material3/edge-to-edge visuals are
+    # representative for UI review.
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
@@ -46,15 +50,17 @@ jobs:
       - name: Capture screenshots on emulator
         uses: reactivecircus/android-emulator-runner@v2
         with:
-          # API 34 = app targetSdk. arm64 image matches the Apple Silicon host
-          # so the emulator runs hardware-accelerated and boots in ~1-2 min.
-          api-level: 34
-          target: google_apis
-          arch: arm64-v8a
+          # Lightest viable AVD for software-emulated boot: API 28 is above
+          # minSdk 26 and the AOSP `default` target skips Play services.
+          # 1200s boot timeout — TCG software emulation is slow.
+          api-level: 28
+          target: default
+          arch: x86_64
           # Leaner boot: skip snapshot load/save, boot animation and audio.
           # (Animations stay enabled on the device — the app gates its own
           # motion on the system animator setting, which we want to review.)
           emulator-options: -no-snapshot -no-boot-anim -no-audio
+          emulator-boot-timeout: 1200
           script: bash tools/ci_screenshots.sh
 
       - name: Upload screenshots
