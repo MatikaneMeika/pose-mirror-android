@@ -1,9 +1,27 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <style name="Theme.PoseMirror" parent="Theme.AppCompat.Light.NoActionBar">
-        <item name="colorPrimary">#FFD54F</item>
-        <item name="colorPrimaryDark">#111111</item>
-        <item name="colorAccent">#FFD54F</item>
-        <item name="android:windowBackground">#111111</item>
+    <!-- Material 3 dark theme, re-tokenized to the Studio Darkroom palette. -->
+    <style name="Theme.PoseMirror" parent="Theme.Material3.Dark.NoActionBar">
+        <item name="colorPrimary">@color/gold</item>
+        <item name="colorOnPrimary">@color/gold_ink</item>
+        <item name="colorPrimaryContainer">@color/gold_container</item>
+        <item name="colorOnPrimaryContainer">@color/gold_bright</item>
+        <item name="colorSecondary">@color/muted</item>
+        <item name="colorOnSecondary">@color/bg</item>
+        <item name="colorSecondaryContainer">@color/gold_container</item>
+        <item name="colorOnSecondaryContainer">@color/gold_bright</item>
+        <item name="android:colorBackground">@color/bg</item>
+        <item name="colorSurface">@color/bg</item>
+        <item name="colorOnSurface">@color/ink</item>
+        <item name="colorSurfaceVariant">@color/surface</item>
+        <item name="colorOnSurfaceVariant">@color/muted</item>
+        <item name="colorSurfaceContainer">@color/surface</item>
+        <item name="colorSurfaceContainerHigh">@color/surface2</item>
+        <item name="colorOutline">@color/hairline</item>
+        <item name="colorOutlineVariant">@color/hairline</item>
+        <item name="colorError">@color/error</item>
+        <item name="android:windowBackground">@color/bg</item>
+        <item name="android:statusBarColor">@color/bg</item>
+        <item name="android:navigationBarColor">@color/bg</item>
     </style>
 </resources>

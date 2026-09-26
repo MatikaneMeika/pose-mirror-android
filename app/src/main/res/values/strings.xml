@@ -1,31 +1,43 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">pose-mirror</string>
-
-    <string name="status_init">starting…</string>
-    <string name="status">index: %1$d poses • pose detected: %2$s</string>
-    <string name="yes">yes</string>
-    <string name="no">no</string>
-    <string name="mirror_toggle">Mirror X</string>
-    <string name="need_camera">Camera permission is required.</string>
-    <string name="pose_error">pose error: %1$s</string>
-    <string name="index_ready">index ready: %1$d poses</string>
-    <string name="index_bad">index problem: %1$s</string>
-
-    <string name="setup_title">Download the pose index</string>
-    <string name="setup_body">The app needs a pose index bundle (built on PC with
-        `python -m posemirror.export_portable`, zipped). Paste its URL — it is
-        downloaded once, then everything runs offline.</string>
-    <string name="url_hint">https://…/index-v1.zip</string>
-    <string name="url_empty">Please paste the index zip URL first.</string>
-    <string name="download">Download</string>
-    <string name="dl_progress">%1$d / %2$d KB</string>
-    <string name="dl_progress_unknown">%1$d KB downloaded…</string>
-    <string name="dl_failed">download failed: %1$s</string>
-
-    <string name="settings">设置</string>
-    <string name="model_loading">loading pose model…</string>
-    <string name="model_failed">pose model download failed — check network and restart</string>
-    <string name="dl_auto">Downloading starter index…</string>
-    <string name="dl_auto_failed">Auto-download failed — paste an index zip URL manually.</string>
+    <string name="status_init">正在启动…</string>
+    <string name="need_camera">需要相机权限才能检测姿势</string>
+    <string name="pose_error">姿态检测出错：%1$s</string>
+    <string name="mirror_label">镜像</string>
+    <string name="mirror_desc">镜像匹配开关</string>
+    <string name="settings_desc">设置</string>
+    <string name="settings_title">设置</string>
+    <string name="setup_title">正在准备图库</string>
+    <string name="setup_body">首次启动需要下载姿势图库索引（几 MB），之后搜索完全离线。</string>
+    <string name="setup_body_manual">自动下载失败。你也可以粘贴自己的索引包链接（zip）：</string>
+    <string name="setup_success">图库已就绪</string>
+    <string name="url_hint">索引包下载链接（zip）</string>
+    <string name="url_empty">请先粘贴索引包链接</string>
+    <string name="download">下载</string>
+    <string name="retry">重试</string>
+    <string name="setup_manual">手动输入</string>
+    <string name="skip">跳过</string>
+    <string name="start">开始使用</string>
+    <string name="dl_progress">正在下载… %1$d / %2$d KB</string>
+    <string name="dl_progress_unknown">正在下载… %1$d KB</string>
+    <string name="dl_failed">下载失败：%1$s</string>
+    <string name="index_bad_simple">索引包已下载，但内容有问题，请重试或检查链接。</string>
+    <string name="model_loading">正在加载姿态模型…</string>
+    <string name="model_failed">姿态模型加载失败</string>
+    <string name="dl_auto">正在从 Release 下载索引包…</string>
+    <string name="pose_hint">将身体置于画面中</string>
+    <string name="unknown">未知</string>
+    <string name="firstlaunch_title">图库更新设置</string>
+    <string name="firstlaunch_intro">选择图库的后台更新方式（随时可在设置中更改）：</string>
+    <string name="stats_title">图库</string>
+    <string name="stats_loading">读取中…</string>
+    <string name="stats_empty">未下载</string>
+    <string name="stats_line">%1$d 张 · 收藏 %2$d · 约 %3$d MB</string>
+    <string name="settings_footer">收藏的图片不会被自动删除。\n图片均来自 Wikimedia Commons，遵循各自的 CC 协议，作者信息见每张图片的详情页。</string>
+    <string name="prefs_applied">更新设置已应用</string>
+    <string name="view_source">查看来源</string>
+    <string name="pin_label">收藏</string>
+    <string name="pinned_label">已收藏</string>
+    <string name="detail_meta">%1$s · %2$s</string>
 </resources>

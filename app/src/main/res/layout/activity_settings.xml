@@ -1,0 +1,88 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Settings: toolbar + stats card + the five preset groups + quiet footer. -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/bg"
+    android:orientation="vertical">
+
+    <com.google.android.material.appbar.MaterialToolbar
+        android:id="@+id/toolbar"
+        android:layout_width="match_parent"
+        android:layout_height="?attr/actionBarSize"
+        android:background="@color/bg"
+        app:navigationIcon="@drawable/ic_close"
+        app:navigationIconTint="@color/ink"
+        app:title="@string/settings_title"
+        app:titleTextColor="@color/ink" />
+
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="@dimen/hairline_w"
+        android:background="@color/hairline" />
+
+    <ScrollView
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:clipToPadding="false"
+        android:paddingBottom="@dimen/sp4">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:padding="@dimen/sp2">
+
+            <com.google.android.material.card.MaterialCardView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                app:cardBackgroundColor="@color/surface"
+                app:cardCornerRadius="@dimen/corner_m"
+                app:cardElevation="0dp"
+                app:strokeColor="@color/hairline"
+                app:strokeWidth="@dimen/hairline_w">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:padding="@dimen/sp2">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:letterSpacing="0.06"
+                        android:text="@string/stats_title"
+                        android:textColor="@color/faint"
+                        android:textSize="@dimen/text_caption" />
+
+                    <TextView
+                        android:id="@+id/statsText"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="@dimen/sp1"
+                        android:fontFamily="@font/space_grotesk"
+                        android:text="@string/stats_loading"
+                        android:textColor="@color/ink"
+                        android:textSize="@dimen/text_title" />
+                </LinearLayout>
+            </com.google.android.material.card.MaterialCardView>
+
+            <LinearLayout
+                android:id="@+id/prefsContainer"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="@dimen/sp2"
+                android:orientation="vertical" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="@dimen/sp3"
+                android:text="@string/settings_footer"
+                android:textColor="@color/faint"
+                android:textSize="@dimen/text_caption" />
+        </LinearLayout>
+    </ScrollView>
+</LinearLayout>

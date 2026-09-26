@@ -1,57 +1,62 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!--
+  Result cell: quiet edge-to-edge thumbnail. Score in Space Grotesk gold,
+  favorite star only when pinned. No heavy cards.
+-->
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:padding="4dp">
+    android:padding="2dp">
 
     <ImageView
         android:id="@+id/thumb"
         android:layout_width="match_parent"
-        android:layout_height="120dp"
-        android:scaleType="centerCrop"
-        android:background="#1E1E1E" />
+        android:layout_height="@dimen/thumb_h"
+        android:background="@drawable/bg_skeleton"
+        android:clipToOutline="true"
+        android:scaleType="centerCrop" />
 
     <TextView
         android:id="@+id/score"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_gravity="top|end"
-        android:layout_margin="4dp"
-        android:background="#CC000000"
-        android:paddingStart="6dp"
-        android:paddingEnd="6dp"
-        android:paddingTop="2dp"
-        android:paddingBottom="2dp"
-        android:textColor="#FFD54F"
-        android:textSize="12sp"
+        android:layout_margin="6dp"
+        android:background="@drawable/bg_pill"
+        android:fontFamily="@font/space_grotesk"
+        android:paddingStart="8dp"
+        android:paddingTop="3dp"
+        android:paddingEnd="8dp"
+        android:paddingBottom="3dp"
+        android:textColor="@color/gold_bright"
+        android:textSize="@dimen/text_caption"
         android:textStyle="bold" />
 
-    <!-- Favorite (pinned) badge; long-press the thumbnail to toggle -->
-    <TextView
+    <ImageView
         android:id="@+id/star"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
+        android:layout_width="22dp"
+        android:layout_height="22dp"
         android:layout_gravity="top|start"
-        android:layout_margin="4dp"
-        android:background="#CC000000"
-        android:paddingStart="6dp"
-        android:paddingEnd="6dp"
-        android:paddingTop="2dp"
-        android:paddingBottom="2dp"
-        android:text="★"
-        android:textColor="#FFD54F"
-        android:textSize="13sp"
-        android:visibility="gone" />
+        android:layout_margin="6dp"
+        android:background="@drawable/bg_pill"
+        android:padding="3dp"
+        android:src="@drawable/ic_star_filled"
+        android:visibility="gone"
+        app:tint="@color/gold" />
 
     <TextView
         android:id="@+id/title"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_gravity="bottom"
-        android:background="#AA000000"
+        android:background="@color/scrim"
         android:ellipsize="end"
         android:maxLines="1"
-        android:padding="4dp"
-        android:textColor="#FFFFFF"
-        android:textSize="11sp" />
+        android:paddingStart="6dp"
+        android:paddingTop="4dp"
+        android:paddingEnd="6dp"
+        android:paddingBottom="4dp"
+        android:textColor="@color/ink"
+        android:textSize="@dimen/text_micro" />
 </FrameLayout>
