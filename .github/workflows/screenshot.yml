@@ -1,11 +1,18 @@
 name: UI screenshots
 
-# Manual-only: captures the key screens on an emulator for UI review.
-# Trigger from the branch under review, e.g.:
-#   gh workflow run screenshot.yml --ref ui-review
-# discovery touch
+# Captures the key screens on an emulator for UI review.
+#
+# Triggers:
+# - workflow_dispatch: manual runs from any branch that has this file
+#   (e.g. `gh workflow run screenshot.yml --ref ui-review`).
+# - push to ui-review: automatic re-capture after each fix round.
+#   NOTE: workflow_dispatch alone cannot discover a workflow file that exists
+#   only on a non-default branch (GitHub returns 404), so the push trigger is
+#   what actually fires the runs during review. main is never touched.
 on:
   workflow_dispatch:
+  push:
+    branches: [ui-review]
 
 jobs:
   screenshot:
