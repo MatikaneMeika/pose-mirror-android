@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">pose-mirror</string>
+
+    <string name="status_init">starting…</string>
+    <string name="status">index: %1$d poses • pose detected: %2$s</string>
+    <string name="yes">yes</string>
+    <string name="no">no</string>
+    <string name="mirror_toggle">Mirror X</string>
+    <string name="need_camera">Camera permission is required.</string>
+    <string name="pose_error">pose error: %1$s</string>
+    <string name="index_ready">index ready: %1$d poses</string>
+    <string name="index_bad">index problem: %1$s</string>
+
+    <string name="setup_title">Download the pose index</string>
+    <string name="setup_body">The app needs a pose index bundle (built on PC with
+        `python -m posemirror.export_portable`, zipped). Paste its URL — it is
+        downloaded once, then everything runs offline.</string>
+    <string name="url_hint">https://…/index-v1.zip</string>
+    <string name="url_empty">Please paste the index zip URL first.</string>
+    <string name="download">Download</string>
+    <string name="dl_progress">%1$d / %2$d KB</string>
+    <string name="dl_progress_unknown">%1$d KB downloaded…</string>
+    <string name="dl_failed">download failed: %1$s</string>
+</resources>

@@ -1,0 +1,16 @@
+# Android / Gradle
+.gradle/
+build/
+local.properties
+*.iml
+
+# Downloaded model bundle (large binary, fetch with tools/download_model.sh)
+app/src/main/assets/pose_landmarker_full.task
+
+# Downloaded index bundle (user data)
+app/src/main/assets/index/
+
+# OS / editors
+.DS_Store
+.idea/
+*.log

@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Theme.PoseMirror" parent="Theme.AppCompat.Light.NoActionBar">
+        <item name="colorPrimary">#FFD54F</item>
+        <item name="colorPrimaryDark">#111111</item>
+        <item name="colorAccent">#FFD54F</item>
+        <item name="android:windowBackground">#111111</item>
+    </style>
+</resources>
